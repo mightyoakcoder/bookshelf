@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Only my own Google account can read or write, and only under its own uid.
+// Anyone else who signs in sees an empty app and gets permission-denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/books/{bookId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid
+        && request.auth.token.email == "mightyoakcoder@gmail.com"
+        && request.auth.token.email_verified == true;
+    }
+  }
+}
