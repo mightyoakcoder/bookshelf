@@ -4,10 +4,11 @@ import { BookEditor } from './components/BookEditor'
 import { Cover } from './components/Cover'
 import { Scanner, type ScanOutcome } from './components/Scanner'
 import { downloadCsv } from './lib/csv'
+import { formatLabel } from './lib/format'
 import { cleanIsbn, isValidIsbn, toIsbn13 } from './lib/isbn'
 import { newManualId, removeBook, saveBook, signIn, signOutUser, updateBook, useBooks, useUser } from './lib/library'
 import { lookupIsbn } from './lib/lookup'
-import type { Book } from './types/book'
+import type { Book, BookFormat } from './types/book'
 
 function App() {
   const user = useUser()
@@ -59,25 +60,33 @@ function Library({ user }: { user: User }) {
   }, [books, search, sort, onlyNeedsInfo])
 
   // Shared by the camera scanner and the typed-ISBN box
-  async function addByIsbn(raw: string): Promise<ScanOutcome> {
+  // format comes from the scanner's Hardcover/Paperback picker and wins over whatever the lookup says
+  async function addByIsbn(raw: string, format?: BookFormat): Promise<ScanOutcome> {
     const cleaned = cleanIsbn(raw)
     if (!isValidIsbn(cleaned)) return { status: 'error', message: 'not a valid ISBN' }
     const isbn13 = toIsbn13(cleaned)
 
     const existing = byId.get(isbn13)
-    if (existing) return { status: 'duplicate', title: existing.title }
+    if (existing) {
+      // Re-scanning a shelf with the picker set fills in formats you hadn't recorded yet
+      if (format && !existing.format) {
+        updateBook(user.uid, existing.id, { format }, setError)
+        return { status: 'duplicate', title: existing.title, formatSet: format }
+      }
+      return { status: 'duplicate', title: existing.title }
+    }
 
     try {
       const found = await lookupIsbn(isbn13)
       if (found) {
-        saveBook(user.uid, isbn13, { ...found, addedAt: Date.now() }, setError)
+        saveBook(user.uid, isbn13, { ...found, format: format ?? found.format, addedAt: Date.now() }, setError)
         return { status: 'added', title: found.title }
       }
       // Nothing knows this book — save a placeholder so the scan isn't lost
       saveBook(
         user.uid,
         isbn13,
-        { isbn13, title: `Unknown book (${isbn13})`, authors: [], source: 'manual', addedAt: Date.now(), needsInfo: true },
+        { isbn13, title: `Unknown book (${isbn13})`, authors: [], source: 'manual', format, addedAt: Date.now(), needsInfo: true },
         setError,
       )
       return { status: 'notfound' }
@@ -165,7 +174,9 @@ function Library({ user }: { user: User }) {
                 {b.needsInfo ? <span className="badge">needs info</span> : null}
                 {b.needsInfo ? b.isbn13 : b.title}
               </div>
-              <div className="muted small">{b.authors.join(', ')}</div>
+              <div className="muted small">
+                {[b.authors.join(', '), b.format && formatLabel(b.format)].filter(Boolean).join(' · ')}
+              </div>
             </div>
           </li>
         ))}

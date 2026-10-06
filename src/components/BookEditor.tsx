@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { cleanIsbn, isValidIsbn, toIsbn13 } from '../lib/isbn'
-import type { Book, BookData } from '../types/book'
+import type { Book, BookData, BookFormat } from '../types/book'
 
 interface Props {
   book: Book | null // null = adding a new book by hand
@@ -14,6 +14,7 @@ export function BookEditor({ book, onSave, onDelete, onClose }: Props) {
   const [title, setTitle] = useState(book?.needsInfo ? '' : (book?.title ?? ''))
   const [authors, setAuthors] = useState(book?.authors.join(', ') ?? '')
   const [isbn, setIsbn] = useState('')
+  const [format, setFormat] = useState<BookFormat | ''>(book?.format ?? '')
   const [notes, setNotes] = useState(book?.notes ?? '')
   const [error, setError] = useState<string | null>(null)
 
@@ -36,7 +37,8 @@ export function BookEditor({ book, onSave, onDelete, onClose }: Props) {
       {
         title: title.trim(),
         authors: authors.split(',').map((a) => a.trim()).filter(Boolean),
-        notes: notes.trim() || undefined,
+        format: format || null,
+        notes: notes.trim(),
         needsInfo: false,
       },
       isbn13,
@@ -70,6 +72,14 @@ export function BookEditor({ book, onSave, onDelete, onClose }: Props) {
             <input value={isbn} onChange={(e) => setIsbn(e.target.value)} inputMode="numeric" />
           </label>
         )}
+        <label>
+          Cover
+          <select value={format} onChange={(e) => setFormat(e.target.value as BookFormat | '')}>
+            <option value="">Unknown</option>
+            <option value="hardcover">Hardcover</option>
+            <option value="paperback">Paperback</option>
+          </select>
+        </label>
         <label>
           Notes
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />

@@ -1,4 +1,4 @@
-import type { BookLookupResult } from '../types/book'
+import type { BookFormat, BookLookupResult } from '../types/book'
 import { cleanIsbn, isValidIsbn, toIsbn13 } from './isbn'
 
 // Given an ISBN (10 or 13 digits, maybe with dashes), return book info, or null if no source has it.
@@ -8,7 +8,31 @@ export async function lookupIsbn(input: string): Promise<BookLookupResult | null
   if (!isValidIsbn(cleaned)) throw new Error(`"${input}" isn't a valid ISBN`)
 
   const isbn13 = toIsbn13(cleaned)
-  return (await fetchFromOpenLibrary(isbn13)) ?? (await fetchFromGoogleBooks(isbn13))
+  const [found, format] = await Promise.all([
+    (async () => (await fetchFromOpenLibrary(isbn13)) ?? (await fetchFromGoogleBooks(isbn13)))(),
+    fetchOpenLibraryFormat(isbn13),
+  ])
+  return found && { ...found, format }
+}
+
+// Hardcover vs paperback only lives on Open Library's per-edition record (and is often missing).
+// Best effort: any failure just means "unknown".
+async function fetchOpenLibraryFormat(isbn13: string): Promise<BookFormat | undefined> {
+  try {
+    const response = await fetch(`https://openlibrary.org/isbn/${isbn13}.json`)
+    if (!response.ok) return undefined
+    const edition = await response.json()
+    return parseFormat(edition.physical_format)
+  } catch {
+    return undefined
+  }
+}
+
+function parseFormat(raw: unknown): BookFormat | undefined {
+  if (typeof raw !== 'string') return undefined
+  if (/hard|cloth|library binding/i.test(raw)) return 'hardcover'
+  if (/paper|soft|mass market/i.test(raw)) return 'paperback'
+  return undefined
 }
 
 async function fetchFromOpenLibrary(isbn13: string): Promise<BookLookupResult | null> {

@@ -2,7 +2,7 @@ import type { Book } from '../types/book'
 
 // Backup/export of the whole library as a spreadsheet-friendly CSV download
 export function downloadCsv(books: Book[]) {
-  const header = ['isbn13', 'title', 'authors', 'publisher', 'publishedDate', 'pageCount', 'notes', 'addedAt']
+  const header = ['isbn13', 'title', 'authors', 'publisher', 'publishedDate', 'pageCount', 'format', 'notes', 'addedAt']
   const rows = books.map((b) => [
     b.isbn13 ?? '',
     b.title,
@@ -10,6 +10,7 @@ export function downloadCsv(books: Book[]) {
     b.publisher ?? '',
     b.publishedDate ?? '',
     b.pageCount?.toString() ?? '',
+    b.format ?? '',
     b.notes ?? '',
     new Date(b.addedAt).toISOString(),
   ])

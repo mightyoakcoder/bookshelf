@@ -1,9 +1,11 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { formatLabel } from '../lib/format'
 import { isBookBarcode } from '../lib/isbn'
+import type { BookFormat } from '../types/book'
 
 export type ScanOutcome =
   | { status: 'added'; title: string }
-  | { status: 'duplicate'; title: string }
+  | { status: 'duplicate'; title: string; formatSet?: BookFormat }
   | { status: 'notfound' }
   | { status: 'error'; message: string }
 
@@ -13,7 +15,8 @@ interface LogEntry {
 }
 
 interface Props {
-  onIsbn: (isbn: string) => Promise<ScanOutcome>
+  // format is set when you've told the scanner what kind of books you're scanning
+  onIsbn: (isbn: string, format?: BookFormat) => Promise<ScanOutcome>
   onClose: () => void
 }
 
@@ -25,8 +28,9 @@ export function Scanner({ onIsbn, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<MediaStreamTrack | null>(null)
   const seenRef = useRef(new Set<string>())
-  // Always calls the latest onIsbn (which sees the latest library) without restarting the camera
-  const lookup = useEffectEvent((isbn: string) => onIsbn(isbn))
+  const [format, setFormat] = useState<BookFormat | 'auto'>('auto')
+  // Always calls the latest onIsbn and format without restarting the camera
+  const lookup = useEffectEvent((isbn: string) => onIsbn(isbn, format === 'auto' ? undefined : format))
 
   const [log, setLog] = useState<LogEntry[]>([])
   const [cameraError, setCameraError] = useState<string | null>(() =>
@@ -126,6 +130,21 @@ export function Scanner({ onIsbn, onClose }: Props) {
         {cameraError && <p className="scanner-error">{cameraError}</p>}
       </div>
 
+      <div className="format-picker" role="radiogroup" aria-label="Cover type for scanned books">
+        {(['auto', 'hardcover', 'paperback'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            role="radio"
+            aria-checked={format === f}
+            className={format === f ? 'active' : ''}
+            onClick={() => setFormat(f)}
+          >
+            {f === 'auto' ? 'Auto' : formatLabel(f)}
+          </button>
+        ))}
+      </div>
+
       <ul className="scan-log">
         {log.length === 0 && !cameraError && <li className="muted">Point the camera at a barcode on the back cover.</li>}
         {log.map((e) => (
@@ -149,7 +168,12 @@ function ScanLogText({ entry }: { entry: LogEntry }) {
     case 'added':
       return <>✓ Added <strong>{outcome.title}</strong></>
     case 'duplicate':
-      return <>Already have <strong>{outcome.title}</strong></>
+      return (
+        <>
+          Already have <strong>{outcome.title}</strong>
+          {outcome.formatSet && ` — marked ${formatLabel(outcome.formatSet).toLowerCase()}`}
+        </>
+      )
     case 'notfound':
       return <>? {isbn} not in any database — saved, fill in details later</>
     case 'error':

@@ -1,3 +1,5 @@
+export type BookFormat = 'hardcover' | 'paperback'
+
 // What we store in Firestore at users/{uid}/books/{id}
 // id is the ISBN-13 when there is one, otherwise a generated id (books with no ISBN).
 export interface BookData {
@@ -8,6 +10,7 @@ export interface BookData {
   publishedDate?: string
   pageCount?: number
   coverUrl?: string
+  format?: BookFormat | null // null = explicitly cleared back to unknown
   source: 'openlibrary' | 'googlebooks' | 'manual'
   addedAt: number // Date.now()
   notes?: string
